@@ -3,8 +3,9 @@ namespace TestAssignment1
     public class Worker : BackgroundService
     {
         private readonly ILogger<Worker> _logger;
+        private readonly  _fibo;
 
-        public Worker(ILogger<Worker> logger)
+        public Worker(ILogger<Worker> logger, )
         {
             _logger = logger;
         }
