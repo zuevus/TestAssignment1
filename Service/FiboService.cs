@@ -1,4 +1,6 @@
-﻿using System;
+﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -7,35 +9,48 @@ using TestAssignment1.Data;
 
 namespace TestAssignment1.Service
 {
-    public class FiboService
+    public sealed class FiboService(ILogger<FiboService> logger, 
+        IDbContextFactory<TestAssignmentContext> factory) : IFiboService
     {
-
-        private readonly ILogger<TestAssignmentContext> _logger;
-      
-        public FiboService(IConfiguration configuration, ILogger<TestAssignmentContext> logger)
+            public async Task<List<int>> GetFiboAsync(CancellationToken stoppingToken, int count)
         {
-            _logger = logger;
-        }
-
-        public async Task<List<int>> GetFibo(int count)
-        {
-            Dictionary<int, int> test = new() {
-                    {0,0},
-                    {1,1}
-                    };
-            int fib(int n)
+            logger.LogInformation("{ServiceName}: Starting counting fibonacci for sequence of {count} positions", 
+                nameof(FiboService),
+                count);
+            using var context = factory.CreateDbContext();
+            
+          var cash = await context.FiboNumbers.Where(t => t.Position <= count)
+                .ToDictionaryAsync(t => t.Position);
+            List<int> result = cash.Select(t => t.Value.Number).ToList();
+            if (cash.Keys.Contains(count-1))
             {
-                if (test.Keys.Contains(n))
-                    return test[n];
-                test[n] = fib(n - 1) + fib(n - 2);
-                return test[n];
-
+                logger.LogInformation("{ServiceName}: Sequence for {count} position has already counted. Cash has been returned.", 
+                    nameof(FiboService),
+                    count);
+                return result;
             }
-            List<int> result = new();
-            for (int i = 0; i < count; i++)
+            else
             {
-                result.Add(fib(i));
+                logger.LogInformation("{ServiceName}: It's a new for us. Waiting for count...", nameof(FiboService));
+                if (result.Count == 0) result.AddRange(new int[] { 0, 1, 1 });
+                for (int i = result.Count; i < count; i++)
+                {
+                    result.Add(result[i - 1] + result[i - 2]);
+                    if (stoppingToken.IsCancellationRequested) return result; 
+                }
             }
+            List<FiboNumber> newCash = new();
+            var toDb = result.Skip(cash.Keys.Count()).ToArray();
+            for (int i = cash.Keys.Count(); i < (toDb.Count()+cash.Keys.Count()); i++)
+            {
+                newCash.Add(
+                    new FiboNumber { Number = result[i], 
+                    Position = i });
+                if (stoppingToken.IsCancellationRequested) return result;
+            }
+            logger.LogInformation("{ServiceName}: Save cash to database", nameof(FiboService));
+            context.FiboNumbers.AddRange(newCash);
+            await context.SaveChangesAsync(stoppingToken);
             return result;
         }
          
