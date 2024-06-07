@@ -9,22 +9,22 @@ using TestAssignment1.Data;
 
 namespace TestAssignment1.Service
 {
-    public sealed class FiboService(ILogger<FiboService> logger, 
+    public sealed class FiboService(ILogger<FiboService> logger,
         IDbContextFactory<TestAssignmentContext> factory) : IFiboService
     {
-            public async Task<List<int>> GetFiboAsync(CancellationToken stoppingToken, int count)
+        public async Task<List<int>> GetFiboAsync(CancellationToken stoppingToken, int count)
         {
-            logger.LogInformation("{ServiceName}: Starting counting fibonacci for sequence of {count} positions", 
+            logger.LogInformation("{ServiceName}: Starting counting fibonacci for sequence of {count} positions",
                 nameof(FiboService),
                 count);
             using var context = factory.CreateDbContext();
-            
-          var cash = await context.FiboNumbers.Where(t => t.Position <= count)
-                .ToDictionaryAsync(t => t.Position);
-            List<int> result = cash.Select(t => t.Value.Number).ToList();
-            if (cash.Keys.Contains(count-1))
+
+            var cache = await context.FiboNumbers.Where(t => t.Position <= count)
+                  .ToDictionaryAsync(t => t.Position);
+            List<int> result = cache.OrderBy(t => t.Key).Select(t => t.Value.Number).ToList();
+            if (cache.ContainsKey(count - 1))
             {
-                logger.LogInformation("{ServiceName}: Sequence for {count} position has already counted. Cash has been returned.", 
+                logger.LogInformation("{ServiceName}: Sequence for {count} position has already counted. Cash has been returned.",
                     nameof(FiboService),
                     count);
                 return result;
@@ -36,16 +36,19 @@ namespace TestAssignment1.Service
                 for (int i = result.Count; i < count; i++)
                 {
                     result.Add(result[i - 1] + result[i - 2]);
-                    if (stoppingToken.IsCancellationRequested) return result; 
+                    if (stoppingToken.IsCancellationRequested) return result;
                 }
             }
             List<FiboNumber> newCash = new();
-            var toDb = result.Skip(cash.Keys.Count()).ToArray();
-            for (int i = cash.Keys.Count(); i < (toDb.Count()+cash.Keys.Count()); i++)
+            var toDb = result.Skip(cache.Keys.Count()).ToArray();
+            for (int i = cache.Keys.Count(); i < (toDb.Count() + cache.Keys.Count()); i++)
             {
                 newCash.Add(
-                    new FiboNumber { Number = result[i], 
-                    Position = i });
+                    new FiboNumber
+                    {
+                        Number = result[i],
+                        Position = i
+                    });
                 if (stoppingToken.IsCancellationRequested) return result;
             }
             logger.LogInformation("{ServiceName}: Save cash to database", nameof(FiboService));
@@ -53,6 +56,6 @@ namespace TestAssignment1.Service
             await context.SaveChangesAsync(stoppingToken);
             return result;
         }
-         
+
     }
 }
