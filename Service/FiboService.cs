@@ -40,8 +40,8 @@ namespace TestAssignment1.Service
                 }
             }
             List<FiboNumber> newCash = new();
-            var toDb = result.Skip(cache.Keys.Count()).ToArray();
-            for (int i = cache.Keys.Count(); i < (toDb.Count() + cache.Keys.Count()); i++)
+            var toDb = result.Skip(cache.Count()).ToArray();
+            for (int i = cache.Count(); i < (toDb.Count() + cache.Count()); i++)
             {
                 newCash.Add(
                     new FiboNumber
